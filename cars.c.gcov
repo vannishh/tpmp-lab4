@@ -1,0 +1,175 @@
+        -:    0:Source:src/cars.c
+        -:    1:#include <stdio.h>
+        -:    2:#include <string.h>
+        -:    3:#include "cars.h"
+        -:    4:
+        -:    5:/* ------------------------------------------------------------------ */
+       22:    6:int car_add(sqlite3 *db, const Car *c)
+        -:    7:{
+       22:    8:    const char *sql =
+        -:    9:        "INSERT INTO FLEET_CARS(license_plate, brand,"
+        -:   10:        " initial_mileage, capacity)"
+        -:   11:        " VALUES(?, ?, ?, ?);";
+        -:   12:
+       22:   13:    sqlite3_stmt *stmt = NULL;
+       22:   14:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    #####:   15:        return -1;
+        -:   16:
+       22:   17:    sqlite3_bind_text  (stmt, 1, c->license_plate, -1, SQLITE_STATIC);
+       22:   18:    sqlite3_bind_text  (stmt, 2, c->brand,          -1, SQLITE_STATIC);
+       22:   19:    sqlite3_bind_int   (stmt, 3, c->initial_mileage);
+       22:   20:    sqlite3_bind_double(stmt, 4, c->capacity);
+        -:   21:
+       22:   22:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+       22:   23:    if (rc != 0)
+        2:   24:        fprintf(stderr, "car_add error: %s\n", sqlite3_errmsg(db));
+       22:   25:    sqlite3_finalize(stmt);
+       22:   26:    return rc;
+        -:   27:}
+        -:   28:
+        -:   29:/* ------------------------------------------------------------------ */
+        2:   30:int car_update(sqlite3 *db, const Car *c)
+        -:   31:{
+        2:   32:    const char *sql =
+        -:   33:        "UPDATE FLEET_CARS SET license_plate=?, brand=?,"
+        -:   34:        " initial_mileage=?, capacity=? WHERE car_id=?;";
+        -:   35:
+        2:   36:    sqlite3_stmt *stmt = NULL;
+        2:   37:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    #####:   38:        return -1;
+        -:   39:
+        2:   40:    sqlite3_bind_text  (stmt, 1, c->license_plate, -1, SQLITE_STATIC);
+        2:   41:    sqlite3_bind_text  (stmt, 2, c->brand,          -1, SQLITE_STATIC);
+        2:   42:    sqlite3_bind_int   (stmt, 3, c->initial_mileage);
+        2:   43:    sqlite3_bind_double(stmt, 4, c->capacity);
+        2:   44:    sqlite3_bind_int   (stmt, 5, c->car_id);
+        -:   45:
+       2*:   46:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+        2:   47:    sqlite3_finalize(stmt);
+        2:   48:    return rc;
+        -:   49:}
+        -:   50:
+        -:   51:/* ------------------------------------------------------------------ */
+        2:   52:int car_delete(sqlite3 *db, int car_id)
+        -:   53:{
+        2:   54:    const char *sql = "DELETE FROM FLEET_CARS WHERE car_id = ?;";
+        2:   55:    sqlite3_stmt *stmt = NULL;
+        2:   56:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        2:   57:    sqlite3_bind_int(stmt, 1, car_id);
+       2*:   58:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+        2:   59:    sqlite3_finalize(stmt);
+        2:   60:    return rc;
+        -:   61:}
+        -:   62:
+        -:   63:/* ------------------------------------------------------------------ */
+        6:   64:int car_get_by_id(sqlite3 *db, int car_id, Car *out)
+        -:   65:{
+        6:   66:    const char *sql =
+        -:   67:        "SELECT car_id, license_plate, brand,"
+        -:   68:        " initial_mileage, capacity"
+        -:   69:        " FROM FLEET_CARS WHERE car_id = ?;";
+        -:   70:
+        6:   71:    sqlite3_stmt *stmt = NULL;
+        6:   72:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        6:   73:    sqlite3_bind_int(stmt, 1, car_id);
+        -:   74:
+        6:   75:    int found = 0;
+        6:   76:    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        4:   77:        out->car_id          = sqlite3_column_int(stmt, 0);
+        8:   78:        strncpy(out->license_plate,
+        4:   79:                (const char *)sqlite3_column_text(stmt, 1), MAX_STR-1);
+        8:   80:        strncpy(out->brand,
+        4:   81:                (const char *)sqlite3_column_text(stmt, 2), MAX_STR-1);
+        4:   82:        out->initial_mileage = sqlite3_column_int   (stmt, 3);
+        4:   83:        out->capacity        = sqlite3_column_double(stmt, 4);
+        4:   84:        found = 1;
+        -:   85:    }
+        6:   86:    sqlite3_finalize(stmt);
+        6:   87:    return found ? 0 : -1;
+        -:   88:}
+        -:   89:
+        -:   90:/* ------------------------------------------------------------------ */
+    #####:   91:void car_list_all(sqlite3 *db)
+        -:   92:{
+    #####:   93:    const char *sql =
+        -:   94:        "SELECT car_id, license_plate, brand,"
+        -:   95:        " initial_mileage, capacity FROM FLEET_CARS ORDER BY car_id;";
+        -:   96:
+    #####:   97:    sqlite3_stmt *stmt = NULL;
+    #####:   98:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        -:   99:
+    #####:  100:    printf("\n%-5s %-12s %-20s %-15s %-10s\n",
+        -:  101:           "ID", "Plate", "Brand", "Init.Mileage", "Cap(t)");
+    #####:  102:    printf("%-5s %-12s %-20s %-15s %-10s\n",
+        -:  103:           "-----","------------","--------------------",
+        -:  104:           "---------------","----------");
+        -:  105:
+    #####:  106:    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:  107:        printf("%-5d %-12s %-20s %-15d %-10.2f\n",
+        -:  108:               sqlite3_column_int   (stmt, 0),
+        -:  109:               sqlite3_column_text  (stmt, 1),
+        -:  110:               sqlite3_column_text  (stmt, 2),
+        -:  111:               sqlite3_column_int   (stmt, 3),
+        -:  112:               sqlite3_column_double(stmt, 4));
+        -:  113:    }
+    #####:  114:    sqlite3_finalize(stmt);
+    #####:  115:}
+        -:  116:
+        -:  117:/* ------------------------------------------------------------------ */
+        -:  118:/* Report: total mileage and cargo weight for a specific car           */
+    #####:  119:void car_report_mileage_cargo(sqlite3 *db, const char *license_plate)
+        -:  120:{
+    #####:  121:    const char *sql =
+        -:  122:        "SELECT c.license_plate, c.brand,"
+        -:  123:        "       COALESCE(SUM(o.distance_km), 0) AS total_mileage,"
+        -:  124:        "       COALESCE(SUM(o.cargo_weight), 0) AS total_cargo"
+        -:  125:        " FROM FLEET_CARS c"
+        -:  126:        " LEFT JOIN FLEET_ORDERS o ON c.car_id = o.car_id"
+        -:  127:        " WHERE c.license_plate = ?"
+        -:  128:        " GROUP BY c.car_id;";
+        -:  129:
+    #####:  130:    sqlite3_stmt *stmt = NULL;
+    #####:  131:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    #####:  132:    sqlite3_bind_text(stmt, 1, license_plate, -1, SQLITE_STATIC);
+        -:  133:
+    #####:  134:    printf("\n--- Report: Car mileage & cargo ---\n");
+    #####:  135:    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:  136:        printf("Plate  : %s\n", sqlite3_column_text  (stmt, 0));
+    #####:  137:        printf("Brand  : %s\n", sqlite3_column_text  (stmt, 1));
+    #####:  138:        printf("Total mileage (km) : %.2f\n", sqlite3_column_double(stmt, 2));
+    #####:  139:        printf("Total cargo   (t)  : %.2f\n", sqlite3_column_double(stmt, 3));
+        -:  140:    } else {
+    #####:  141:        printf("Car not found: %s\n", license_plate);
+        -:  142:    }
+    #####:  143:    sqlite3_finalize(stmt);
+    #####:  144:}
+        -:  145:
+        -:  146:/* ------------------------------------------------------------------ */
+        -:  147:/* Report: car with max total mileage                                  */
+    #####:  148:void car_max_mileage_report(sqlite3 *db)
+        -:  149:{
+    #####:  150:    const char *sql =
+        -:  151:        "SELECT c.car_id, c.license_plate, c.brand,"
+        -:  152:        "       c.initial_mileage, c.capacity,"
+        -:  153:        "       COALESCE(SUM(o.distance_km), 0) AS total_km"
+        -:  154:        " FROM FLEET_CARS c"
+        -:  155:        " LEFT JOIN FLEET_ORDERS o ON c.car_id = o.car_id"
+        -:  156:        " GROUP BY c.car_id"
+        -:  157:        " ORDER BY total_km DESC LIMIT 1;";
+        -:  158:
+    #####:  159:    sqlite3_stmt *stmt = NULL;
+    #####:  160:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        -:  161:
+    #####:  162:    printf("\n--- Report: Car with maximum total mileage ---\n");
+    #####:  163:    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:  164:        printf("ID           : %d\n",   sqlite3_column_int   (stmt, 0));
+    #####:  165:        printf("Plate        : %s\n",   sqlite3_column_text  (stmt, 1));
+    #####:  166:        printf("Brand        : %s\n",   sqlite3_column_text  (stmt, 2));
+    #####:  167:        printf("Init mileage : %d km\n",sqlite3_column_int   (stmt, 3));
+    #####:  168:        printf("Capacity     : %.2f t\n",sqlite3_column_double(stmt,4));
+    #####:  169:        printf("Total run    : %.2f km\n",sqlite3_column_double(stmt,5));
+        -:  170:    } else {
+    #####:  171:        printf("No cars found.\n");
+        -:  172:    }
+    #####:  173:    sqlite3_finalize(stmt);
+    #####:  174:}

@@ -1,0 +1,96 @@
+        -:    0:Source:src/auth.c
+        -:    1:#include <stdio.h>
+        -:    2:#include <string.h>
+        -:    3:#include "auth.h"
+        -:    4:
+        -:    5:/* ------------------------------------------------------------------ */
+    #####:    6:int auth_login(sqlite3 *db, const char *username,
+        -:    7:               const char *password, User *out_user)
+        -:    8:{
+    #####:    9:    const char *sql =
+        -:   10:        "SELECT user_id, username, role, driver_id "
+        -:   11:        "FROM FLEET_USERS "
+        -:   12:        "WHERE username = ? AND password = ?;";
+        -:   13:
+    #####:   14:    sqlite3_stmt *stmt = NULL;
+    #####:   15:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    #####:   16:        return -1;
+        -:   17:
+    #####:   18:    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    #####:   19:    sqlite3_bind_text(stmt, 2, password, -1, SQLITE_STATIC);
+        -:   20:
+    #####:   21:    int found = 0;
+    #####:   22:    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:   23:        out_user->user_id   = sqlite3_column_int(stmt, 0);
+    #####:   24:        strncpy(out_user->username,
+    #####:   25:                (const char *)sqlite3_column_text(stmt, 1), MAX_STR - 1);
+    #####:   26:        strncpy(out_user->role,
+    #####:   27:                (const char *)sqlite3_column_text(stmt, 2), MAX_STR - 1);
+    #####:   28:        out_user->driver_id = sqlite3_column_int(stmt, 3);
+    #####:   29:        found = 1;
+        -:   30:    }
+        -:   31:
+    #####:   32:    sqlite3_finalize(stmt);
+    #####:   33:    return found ? 0 : -1;
+        -:   34:}
+        -:   35:
+        -:   36:/* ------------------------------------------------------------------ */
+    #####:   37:int auth_register(sqlite3 *db, const char *username,
+        -:   38:                  const char *password, const char *role,
+        -:   39:                  int driver_id)
+        -:   40:{
+    #####:   41:    const char *sql =
+        -:   42:        "INSERT INTO FLEET_USERS(username, password, role, driver_id)"
+        -:   43:        " VALUES(?, ?, ?, ?);";
+        -:   44:
+    #####:   45:    sqlite3_stmt *stmt = NULL;
+    #####:   46:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    #####:   47:        fprintf(stderr, "Register prepare error: %s\n",
+        -:   48:                sqlite3_errmsg(db));
+    #####:   49:        return -1;
+        -:   50:    }
+        -:   51:
+    #####:   52:    sqlite3_bind_text(stmt, 1, username,  -1, SQLITE_STATIC);
+    #####:   53:    sqlite3_bind_text(stmt, 2, password,  -1, SQLITE_STATIC);
+    #####:   54:    sqlite3_bind_text(stmt, 3, role,      -1, SQLITE_STATIC);
+    #####:   55:    sqlite3_bind_int (stmt, 4, driver_id);
+        -:   56:
+    #####:   57:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+    #####:   58:    if (rc != 0)
+    #####:   59:        fprintf(stderr, "Register error: %s\n", sqlite3_errmsg(db));
+        -:   60:
+    #####:   61:    sqlite3_finalize(stmt);
+    #####:   62:    return rc;
+        -:   63:}
+        -:   64:
+        -:   65:/* ------------------------------------------------------------------ */
+    #####:   66:int auth_change_password(sqlite3 *db, int user_id,
+        -:   67:                         const char *old_pass, const char *new_pass)
+        -:   68:{
+        -:   69:    /* Verify old password first */
+    #####:   70:    const char *check_sql =
+        -:   71:        "SELECT COUNT(*) FROM FLEET_USERS"
+        -:   72:        " WHERE user_id = ? AND password = ?;";
+        -:   73:
+    #####:   74:    sqlite3_stmt *stmt = NULL;
+    #####:   75:    sqlite3_prepare_v2(db, check_sql, -1, &stmt, NULL);
+    #####:   76:    sqlite3_bind_int (stmt, 1, user_id);
+    #####:   77:    sqlite3_bind_text(stmt, 2, old_pass, -1, SQLITE_STATIC);
+    #####:   78:    sqlite3_step(stmt);
+    #####:   79:    int cnt = sqlite3_column_int(stmt, 0);
+    #####:   80:    sqlite3_finalize(stmt);
+        -:   81:
+    #####:   82:    if (cnt == 0) {
+    #####:   83:        printf("Incorrect current password.\n");
+    #####:   84:        return -1;
+        -:   85:    }
+        -:   86:
+    #####:   87:    const char *upd_sql =
+        -:   88:        "UPDATE FLEET_USERS SET password = ? WHERE user_id = ?;";
+    #####:   89:    sqlite3_prepare_v2(db, upd_sql, -1, &stmt, NULL);
+    #####:   90:    sqlite3_bind_text(stmt, 1, new_pass, -1, SQLITE_STATIC);
+    #####:   91:    sqlite3_bind_int (stmt, 2, user_id);
+    #####:   92:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+    #####:   93:    sqlite3_finalize(stmt);
+    #####:   94:    return rc;
+        -:   95:}

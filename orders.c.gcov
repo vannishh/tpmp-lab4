@@ -1,0 +1,232 @@
+        -:    0:Source:src/orders.c
+        -:    1:#include <stdio.h>
+        -:    2:#include <string.h>
+        -:    3:#include "orders.h"
+        -:    4:
+        -:    5:/* ------------------------------------------------------------------ */
+       10:    6:int order_add(sqlite3 *db, const Order *o)
+        -:    7:{
+       10:    8:    const char *sql =
+        -:    9:        "INSERT INTO FLEET_ORDERS"
+        -:   10:        "(order_date, driver_id, car_id,"
+        -:   11:        " distance_km, cargo_weight, transport_cost)"
+        -:   12:        " VALUES(?, ?, ?, ?, ?, ?);";
+        -:   13:
+       10:   14:    sqlite3_stmt *stmt = NULL;
+       10:   15:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    #####:   16:        fprintf(stderr, "order_add prepare: %s\n", sqlite3_errmsg(db));
+    #####:   17:        return -1;
+        -:   18:    }
+        -:   19:
+       10:   20:    sqlite3_bind_text  (stmt, 1, o->order_date,    -1, SQLITE_STATIC);
+       10:   21:    sqlite3_bind_int   (stmt, 2, o->driver_id);
+       10:   22:    sqlite3_bind_int   (stmt, 3, o->car_id);
+       10:   23:    sqlite3_bind_double(stmt, 4, o->distance_km);
+       10:   24:    sqlite3_bind_double(stmt, 5, o->cargo_weight);
+       10:   25:    sqlite3_bind_double(stmt, 6, o->transport_cost);
+        -:   26:
+       10:   27:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+       10:   28:    if (rc != 0)
+        2:   29:        fprintf(stderr, "order_add error: %s\n", sqlite3_errmsg(db));
+       10:   30:    sqlite3_finalize(stmt);
+       10:   31:    return rc;
+        -:   32:}
+        -:   33:
+        -:   34:/* ------------------------------------------------------------------ */
+    #####:   35:int order_update(sqlite3 *db, const Order *o)
+        -:   36:{
+    #####:   37:    const char *sql =
+        -:   38:        "UPDATE FLEET_ORDERS SET order_date=?, driver_id=?, car_id=?,"
+        -:   39:        " distance_km=?, cargo_weight=?, transport_cost=?"
+        -:   40:        " WHERE order_id=?;";
+        -:   41:
+    #####:   42:    sqlite3_stmt *stmt = NULL;
+    #####:   43:    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+    #####:   44:        return -1;
+        -:   45:
+    #####:   46:    sqlite3_bind_text  (stmt, 1, o->order_date,    -1, SQLITE_STATIC);
+    #####:   47:    sqlite3_bind_int   (stmt, 2, o->driver_id);
+    #####:   48:    sqlite3_bind_int   (stmt, 3, o->car_id);
+    #####:   49:    sqlite3_bind_double(stmt, 4, o->distance_km);
+    #####:   50:    sqlite3_bind_double(stmt, 5, o->cargo_weight);
+    #####:   51:    sqlite3_bind_double(stmt, 6, o->transport_cost);
+    #####:   52:    sqlite3_bind_int   (stmt, 7, o->order_id);
+        -:   53:
+    #####:   54:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+    #####:   55:    sqlite3_finalize(stmt);
+    #####:   56:    return rc;
+        -:   57:}
+        -:   58:
+        -:   59:/* ------------------------------------------------------------------ */
+        2:   60:int order_delete(sqlite3 *db, int order_id)
+        -:   61:{
+        2:   62:    const char *sql = "DELETE FROM FLEET_ORDERS WHERE order_id=?;";
+        2:   63:    sqlite3_stmt *stmt = NULL;
+        2:   64:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        2:   65:    sqlite3_bind_int(stmt, 1, order_id);
+       2*:   66:    int rc = (sqlite3_step(stmt) == SQLITE_DONE) ? 0 : -1;
+        2:   67:    sqlite3_finalize(stmt);
+        2:   68:    return rc;
+        -:   69:}
+        -:   70:
+        -:   71:/* ------------------------------------------------------------------ */
+    #####:   72:void order_list_all(sqlite3 *db)
+        -:   73:{
+    #####:   74:    const char *sql =
+        -:   75:        "SELECT o.order_id, o.order_date,"
+        -:   76:        "       d.last_name, c.license_plate,"
+        -:   77:        "       o.distance_km, o.cargo_weight, o.transport_cost"
+        -:   78:        " FROM FLEET_ORDERS o"
+        -:   79:        " JOIN FLEET_DRIVERS d ON o.driver_id = d.driver_id"
+        -:   80:        " JOIN FLEET_CARS    c ON o.car_id    = c.car_id"
+        -:   81:        " ORDER BY o.order_date;";
+        -:   82:
+    #####:   83:    sqlite3_stmt *stmt = NULL;
+    #####:   84:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        -:   85:
+    #####:   86:    printf("\n%-6s %-12s %-20s %-12s %-10s %-10s %-12s\n",
+        -:   87:           "ID","Date","Driver","Plate","Dist(km)","Cargo(t)","Cost");
+    #####:   88:    printf("%-6s %-12s %-20s %-12s %-10s %-10s %-12s\n",
+        -:   89:           "------","------------","--------------------","------------",
+        -:   90:           "----------","----------","------------");
+        -:   91:
+    #####:   92:    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:   93:        printf("%-6d %-12s %-20s %-12s %-10.2f %-10.2f %-12.2f\n",
+        -:   94:               sqlite3_column_int   (stmt, 0),
+        -:   95:               sqlite3_column_text  (stmt, 1),
+        -:   96:               sqlite3_column_text  (stmt, 2),
+        -:   97:               sqlite3_column_text  (stmt, 3),
+        -:   98:               sqlite3_column_double(stmt, 4),
+        -:   99:               sqlite3_column_double(stmt, 5),
+        -:  100:               sqlite3_column_double(stmt, 6));
+        -:  101:    }
+    #####:  102:    sqlite3_finalize(stmt);
+    #####:  103:}
+        -:  104:
+        -:  105:/* ------------------------------------------------------------------ */
+    #####:  106:void order_list_by_driver_id(sqlite3 *db, int driver_id)
+        -:  107:{
+    #####:  108:    const char *sql =
+        -:  109:        "SELECT o.order_id, o.order_date, c.license_plate,"
+        -:  110:        "       o.distance_km, o.cargo_weight, o.transport_cost,"
+        -:  111:        "       o.transport_cost * 0.20 AS my_pay"
+        -:  112:        " FROM FLEET_ORDERS o"
+        -:  113:        " JOIN FLEET_CARS c ON o.car_id = c.car_id"
+        -:  114:        " WHERE o.driver_id = ?"
+        -:  115:        " ORDER BY o.order_date;";
+        -:  116:
+    #####:  117:    sqlite3_stmt *stmt = NULL;
+    #####:  118:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+    #####:  119:    sqlite3_bind_int(stmt, 1, driver_id);
+        -:  120:
+    #####:  121:    printf("\n%-6s %-12s %-12s %-10s %-10s %-12s %-10s\n",
+        -:  122:           "ID","Date","Plate","Dist(km)","Cargo(t)","Cost","MyPay");
+    #####:  123:    printf("%-6s %-12s %-12s %-10s %-10s %-12s %-10s\n",
+        -:  124:           "------","------------","------------",
+        -:  125:           "----------","----------","------------","----------");
+        -:  126:
+    #####:  127:    int rows = 0;
+    #####:  128:    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:  129:        printf("%-6d %-12s %-12s %-10.2f %-10.2f %-12.2f %-10.2f\n",
+        -:  130:               sqlite3_column_int   (stmt, 0),
+        -:  131:               sqlite3_column_text  (stmt, 1),
+        -:  132:               sqlite3_column_text  (stmt, 2),
+        -:  133:               sqlite3_column_double(stmt, 3),
+        -:  134:               sqlite3_column_double(stmt, 4),
+        -:  135:               sqlite3_column_double(stmt, 5),
+        -:  136:               sqlite3_column_double(stmt, 6));
+    #####:  137:        rows++;
+        -:  138:    }
+    #####:  139:    if (rows == 0) printf("No orders found.\n");
+    #####:  140:    sqlite3_finalize(stmt);
+    #####:  141:}
+        -:  142:
+        -:  143:/* ------------------------------------------------------------------ */
+        -:  144:/* Function 5: calculate earnings for ALL drivers for a period and     */
+        -:  145:/* store results in FLEET_EARNINGS                                     */
+        2:  146:int fn_calculate_earnings(sqlite3 *db,
+        -:  147:                          const char *date_from, const char *date_to)
+        -:  148:{
+        2:  149:    const char *sel_sql =
+        -:  150:        "SELECT driver_id,"
+        -:  151:        "       SUM(transport_cost * 0.20) AS earnings"
+        -:  152:        " FROM FLEET_ORDERS"
+        -:  153:        " WHERE order_date BETWEEN ? AND ?"
+        -:  154:        " GROUP BY driver_id;";
+        -:  155:
+        2:  156:    const char *ins_sql =
+        -:  157:        "INSERT INTO FLEET_EARNINGS"
+        -:  158:        "(driver_id, period_start, period_end, total_earnings)"
+        -:  159:        " VALUES(?, ?, ?, ?);";
+        -:  160:
+        2:  161:    sqlite3_stmt *sel = NULL, *ins = NULL;
+        2:  162:    sqlite3_prepare_v2(db, sel_sql, -1, &sel, NULL);
+        2:  163:    sqlite3_bind_text(sel, 1, date_from, -1, SQLITE_STATIC);
+        2:  164:    sqlite3_bind_text(sel, 2, date_to,   -1, SQLITE_STATIC);
+        -:  165:
+        2:  166:    sqlite3_prepare_v2(db, ins_sql, -1, &ins, NULL);
+        -:  167:
+        2:  168:    int count = 0;
+        2:  169:    printf("\n--- Earnings report [%s — %s] ---\n", date_from, date_to);
+        2:  170:    printf("%-5s %-12s\n", "DrvID","Earnings");
+        2:  171:    printf("%-5s %-12s\n", "-----","------------");
+        -:  172:
+        4:  173:    while (sqlite3_step(sel) == SQLITE_ROW) {
+        2:  174:        int    did      = sqlite3_column_int   (sel, 0);
+        2:  175:        double earnings = sqlite3_column_double(sel, 1);
+        -:  176:
+        2:  177:        printf("%-5d %-12.2f\n", did, earnings);
+        -:  178:
+        2:  179:        sqlite3_bind_int   (ins, 1, did);
+        2:  180:        sqlite3_bind_text  (ins, 2, date_from, -1, SQLITE_STATIC);
+        2:  181:        sqlite3_bind_text  (ins, 3, date_to,   -1, SQLITE_STATIC);
+        2:  182:        sqlite3_bind_double(ins, 4, earnings);
+        2:  183:        sqlite3_step(ins);
+        2:  184:        sqlite3_reset(ins);
+        2:  185:        count++;
+        -:  186:    }
+       2*:  187:    if (count == 0) printf("No orders in this period.\n");
+        -:  188:
+        2:  189:    sqlite3_finalize(sel);
+        2:  190:    sqlite3_finalize(ins);
+        2:  191:    printf("Saved %d records to FLEET_EARNINGS.\n", count);
+        2:  192:    return count;
+        -:  193:}
+        -:  194:
+        -:  195:/* ------------------------------------------------------------------ */
+        -:  196:/* Function 6: earnings for a specific driver in a period              */
+        2:  197:int fn_calculate_driver_earnings(sqlite3 *db,
+        -:  198:                                 const char *last_name,
+        -:  199:                                 const char *date_from,
+        -:  200:                                 const char *date_to)
+        -:  201:{
+        2:  202:    const char *sql =
+        -:  203:        "SELECT d.last_name,"
+        -:  204:        "       SUM(o.transport_cost * 0.20) AS earnings,"
+        -:  205:        "       COUNT(o.order_id) AS trips"
+        -:  206:        " FROM FLEET_ORDERS o"
+        -:  207:        " JOIN FLEET_DRIVERS d ON o.driver_id = d.driver_id"
+        -:  208:        " WHERE d.last_name = ?"
+        -:  209:        "   AND o.order_date BETWEEN ? AND ?"
+        -:  210:        " GROUP BY d.driver_id;";
+        -:  211:
+        2:  212:    sqlite3_stmt *stmt = NULL;
+        2:  213:    sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+        2:  214:    sqlite3_bind_text(stmt, 1, last_name, -1, SQLITE_STATIC);
+        2:  215:    sqlite3_bind_text(stmt, 2, date_from, -1, SQLITE_STATIC);
+        2:  216:    sqlite3_bind_text(stmt, 3, date_to,   -1, SQLITE_STATIC);
+        -:  217:
+        2:  218:    printf("\n--- Earnings for driver [%s] from %s to %s ---\n",
+        -:  219:           last_name, date_from, date_to);
+        -:  220:
+        2:  221:    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    #####:  222:        printf("Driver  : %s\n",   sqlite3_column_text  (stmt, 0));
+    #####:  223:        printf("Earnings: %.2f\n", sqlite3_column_double(stmt, 1));
+    #####:  224:        printf("Trips   : %d\n",   sqlite3_column_int   (stmt, 2));
+    #####:  225:        sqlite3_finalize(stmt);
+    #####:  226:        return 0;
+        -:  227:    }
+        2:  228:    printf("No data found.\n");
+        2:  229:    sqlite3_finalize(stmt);
+        2:  230:    return -1;
+        -:  231:}
